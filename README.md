@@ -1,2 +1,3 @@
 # collab_OM-RM
-Collaboration exercise with Ouida and Robin
+Collaboration exercise between Ouida and Robin
+

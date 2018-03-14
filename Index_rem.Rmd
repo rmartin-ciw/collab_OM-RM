@@ -5,26 +5,129 @@ date: "3/13/2018"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
+![](https://github.com/rmartin-ciw/coral-repo/raw/master/example_plot.png)
+
+#Starting on real data
+
+```{r}
+## libraries
+library(tidyverse)
+library(janitor) # install.packages('janitor')
+library(skimr) # install.packages('skimr')
+library(stringr) # added when we needed it for benthic data
+library(ggplot2)
+
+## data filepaths/urls ----
+
+## benthic data
+benthic_url <- 'https://www.nodc.noaa.gov/archive/arc0054/0104255/1.1/data/0-data/cd08/100308OaAla03m.CSV'
+
+## buoy data
+buoy_url <- 'http://www.ndbc.noaa.gov/view_text_file.php?filename=mokh1h2010.txt.gz&dir=data/historical/stdmet/'
+
+#Benthic Data
+
+benthic_raw <- read_csv(benthic_url)
+head(benthic_raw)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r}
+benthic <- benthic_raw %>%
+janitor::clean_names()
+names(benthic)
 ```
 
-## Including Plots
+```{r}
+benthic <- benthic %>%
+  select(id_name, point, x, y, id_date)
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+head(benthic)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+To replace or remove
+mutate(date = stringr::str_remove_all(id_date, "#"))
+mutate(date = stringr::str_replace_all(id_date, "#", ""))
+```{r}
+benthic <- benthic %>%
+  mutate(date = stringr::str_replace_all(id_date, "#", ""))
+
+head(benthic)
+```
+
+```{r}
+unique(benthic$id_name)
+
+```
+
+```{r}
+ggplot(benthic, aes(x = date, fill = id_name)) +
+  geom_bar()
+
+```
+
+Read in data
+# Buoy Data
+```{r}
+buoy_raw <- read_table2(buoy_url)
+head(buoy_raw)
+```
+
+```{r}
+buoy <- buoy_raw
+## 1. overwrite column names
+names(buoy) <- str_c(names(buoy),                  ## current header
+                  buoy %>% filter(`#YY` == "#yr"), ## row1 -- don't say buoy[1,] 
+                  sep = "_")                       ## separate by `_`
+
+## inspect
+names(buoy) ## Looks a lot better
+```
+
+```{r}
+## 2. clean up a bit more to get rid of the `#`s and the `/`s. 
+names(buoy) <- str_replace_all(names(buoy), "#", "")  # replace `#` with nothing 
+names(buoy) <- str_replace_all(names(buoy), "/", "_") # replace `/` with `_`
+
+## inspect to make sure it worked
+names(buoy)
+```
+
+```{r}
+## 3. remove redundant row with units
+buoy <- buoy %>%
+  filter(YY_yr != "#yr") ## picks out every row you want except the one you don't want
+
+head(buoy)
+```
+
+Plot to visualize data
+```{r}
+ggplot2::ggplot(buoy, aes(WTMP_degC)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r}
+buoy <- buoy %>%
+  unite(date, c(YY_yr, MM_mo, DD_dy), sep = "-")
+
+head(buoy)
+```
+
+```{r}
+bb_join <- left_join(benthic, buoy, by = "date")
+bb_join %>%
+  select(id_name, x, y, date, hh_hr, mm_mn, WTMP_degC) %>%
+  head()
+
+```
+
+```{r}
+bb_day <- buoy %>%
+  dplyr::mutate(bb_day = gsub("999.0", NA, WTMP_degC)) %>%
+  dplyr::mutate(bb_day = as.numeric(WTMP_degC)) %>%
+  dplyr::group_by(date) %>%
+  dplyr::summarise(WTMPavg_degC = mean(WTMPavg_degC)) %>%
+  
+```
